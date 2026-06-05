@@ -966,6 +966,63 @@ h3 {
   color: var(--ink);
 }
 
+.image-drop-zone {
+  display: grid;
+  gap: 8px;
+  place-items: center;
+  min-height: 150px;
+  padding: 18px;
+  border: 1px dashed rgba(31, 122, 77, 0.55);
+  background:
+    linear-gradient(135deg, rgba(231, 255, 125, 0.28), transparent 62%),
+    #fff;
+  color: var(--ink);
+  text-align: center;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.image-drop-zone.dragging,
+.image-drop-zone:hover {
+  border-color: var(--green);
+  box-shadow: 0 12px 26px rgba(31, 122, 77, 0.14);
+  transform: translateY(-1px);
+}
+
+.image-drop-zone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.image-drop-zone span {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  background: var(--ink);
+  color: #fff;
+}
+
+.image-drop-zone strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+}
+
+.image-drop-zone p {
+  max-width: 440px;
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .wide-field {
   grid-column: 1 / -1;
 }

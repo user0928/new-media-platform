@@ -1,4 +1,4 @@
-import { type FormEvent, useMemo, useState } from "react";
+import { type ChangeEvent, type DragEvent, type FormEvent, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -12,6 +12,7 @@ import {
   FileText,
   FolderKanban,
   Gauge,
+  ImagePlus,
   Layers3,
   Link2,
   Megaphone,
@@ -112,7 +113,7 @@ type RegistrationRequest = {
   status: "待审核" | "已通过" | "已驳回";
 };
 
-type SubmissionKind = "链接" | "文件记录" | "文字说明" | "发布数据";
+type SubmissionKind = "链接" | "图片文件" | "文件记录" | "文字说明" | "发布数据";
 type Submission = {
   id: string;
   projectId: string;
@@ -1073,17 +1074,22 @@ function SubmissionForm({
   onSubmit: (payload: Omit<Submission, "id" | "time" | "projectId" | "taskId" | "author" | "department">) => void;
   taskTitle: string;
 }) {
-  const defaultKind: SubmissionKind = department === "运维部" ? "链接" : department === "技术部" ? "文件记录" : "链接";
+  const defaultKind: SubmissionKind = department === "运维部" ? "链接" : department === "技术部" ? "图片文件" : "链接";
   const [kind, setKind] = useState<SubmissionKind>(defaultKind);
   const [content, setContent] = useState("");
   const [version, setVersion] = useState(department === "运维部" ? "预览 v1" : "初稿 v1");
   const [final, setFinal] = useState(false);
   const [note, setNote] = useState("");
   const [lastMessage, setLastMessage] = useState("");
+  const [imageFileName, setImageFileName] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
 
   function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const normalizedContent = content.trim() || getSubmissionPlaceholder(department);
+    const normalizedContent =
+      kind === "图片文件"
+        ? imageFileName || content.trim() || "未命名封面图片"
+        : content.trim() || getSubmissionPlaceholder(department);
     onSubmit({
       kind,
       content: normalizedContent,
@@ -1094,6 +1100,27 @@ function SubmissionForm({
     setLastMessage(`${author} 已提交：${normalizedContent}`);
     setContent("");
     setNote("");
+    setImageFileName("");
+  }
+
+  function pickImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (file) {
+      setImageFileName(file.name);
+      setContent(file.name);
+      setKind("图片文件");
+    }
+  }
+
+  function dropImage(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) {
+      setImageFileName(file.name);
+      setContent(file.name);
+      setKind("图片文件");
+    }
   }
 
   return (
@@ -1110,6 +1137,7 @@ function SubmissionForm({
           提交类型
           <select value={kind} onChange={(event) => setKind(event.target.value as SubmissionKind)}>
             <option>链接</option>
+            <option>图片文件</option>
             <option>文件记录</option>
             <option>文字说明</option>
             <option>发布数据</option>
@@ -1119,14 +1147,35 @@ function SubmissionForm({
           版本说明
           <input value={version} onChange={(event) => setVersion(event.target.value)} />
         </label>
-        <label className="wide-field">
-          提交内容
-          <input
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-            placeholder={getSubmissionPlaceholder(department)}
-          />
-        </label>
+        {kind === "图片文件" && (
+          <label
+            className={`image-drop-zone wide-field ${isDragging ? "dragging" : ""}`}
+            onDragEnter={(event) => {
+              event.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={dropImage}
+          >
+            <input accept="image/*" onChange={pickImage} type="file" />
+            <span>
+              <ImagePlus size={24} aria-hidden="true" />
+            </span>
+            <strong>{imageFileName || "选择或拖拽上传封面图片"}</strong>
+            <p>支持 PNG、JPG、WEBP 等图片文件。第一版先记录文件名，后续可接入真实上传。</p>
+          </label>
+        )}
+        {kind !== "图片文件" && (
+          <label className="wide-field">
+            提交内容
+            <input
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              placeholder={getSubmissionPlaceholder(department)}
+            />
+          </label>
+        )}
         <label className="wide-field">
           备注
           <input
@@ -1179,7 +1228,7 @@ function getSubmissionPlaceholder(department: Department) {
     return "粘贴秀米编辑链接或预览链接";
   }
   if (department === "技术部") {
-    return "填写封面文件名、网盘链接或导出说明";
+    return "选择或拖拽上传封面图片，也可填写图片文件名";
   }
   return "填写公众号预览链接、正式链接、发布截图或阅读数据";
 }
