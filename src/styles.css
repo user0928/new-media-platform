@@ -129,7 +129,8 @@ h3 {
 .compact-list button,
 .project-card,
 .task-cards button,
-.approval-actions button {
+.approval-actions button,
+.open-detail {
   border: 0;
   letter-spacing: 0;
 }
@@ -416,7 +417,7 @@ h3 {
 .task-row,
 .compact-list button {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 12px;
   width: 100%;
@@ -425,6 +426,23 @@ h3 {
   background: var(--panel-soft);
   color: var(--ink);
   text-align: left;
+}
+
+.task-row.selected {
+  outline: 2px solid rgba(31, 122, 77, 0.34);
+  background: #fff;
+}
+
+.open-detail {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .task-row strong,
@@ -773,6 +791,99 @@ h3 {
   gap: 16px;
 }
 
+.department-layout {
+  align-items: start;
+}
+
+.submission-panel {
+  border-color: rgba(31, 122, 77, 0.28);
+  background:
+    linear-gradient(180deg, rgba(31, 122, 77, 0.08), transparent 220px),
+    rgba(251, 252, 248, 0.96);
+}
+
+.submission-form {
+  display: grid;
+  gap: 12px;
+}
+
+.submission-context {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  background: var(--panel-soft);
+}
+
+.submission-context strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.submission-context p,
+.submit-feedback,
+.empty-state {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.checkbox-line input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--green);
+}
+
+.submit-feedback {
+  padding: 10px 12px;
+  background: rgba(31, 122, 77, 0.1);
+  color: var(--green-dark);
+  font-weight: 800;
+}
+
+.submission-log {
+  display: grid;
+  gap: 10px;
+}
+
+.submission-log article {
+  padding: 14px;
+  background: var(--panel-soft);
+}
+
+.submission-log article > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.submission-log strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.submission-log p,
+.submission-log small {
+  display: block;
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.submission-log small {
+  margin-top: 5px;
+  font-weight: 700;
+}
+
 .department-guide ul {
   display: grid;
   gap: 12px;
@@ -807,6 +918,18 @@ h3 {
   display: grid;
   grid-template-columns: minmax(0, 0.95fr) minmax(340px, 1.05fr);
   gap: 16px;
+}
+
+.embedded-register {
+  margin-top: 16px;
+}
+
+.inline-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
 .registration-panel,
@@ -936,7 +1059,7 @@ h3 {
   }
 
   .side-nav {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .side-card {
@@ -1015,7 +1138,8 @@ h3 {
   .topbar-actions,
   .hero-panel,
   .detail-hero,
-  .view-heading {
+  .view-heading,
+  .inline-section-heading {
     flex-direction: column;
     align-items: stretch;
   }
@@ -1083,6 +1207,7 @@ h3 {
 
   .task-row time,
   .task-row .badge,
+  .task-row .open-detail,
   .file-list .badge,
   .member-table > article > span:not(.avatar),
   .manager-label {

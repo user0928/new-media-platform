@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -28,7 +28,7 @@ import {
   UsersRound,
 } from "lucide-react";
 
-type View = "dashboard" | "board" | "detail" | "departments" | "members" | "register";
+type View = "dashboard" | "board" | "detail" | "departments" | "members";
 type Department = "采编部" | "技术部" | "运维部";
 type TeamArea = Department | "指导" | "统筹";
 type MemberRole =
@@ -110,6 +110,21 @@ type RegistrationRequest = {
   targetRole: MemberRole;
   reason: string;
   status: "待审核" | "已通过" | "已驳回";
+};
+
+type SubmissionKind = "链接" | "文件记录" | "文字说明" | "发布数据";
+type Submission = {
+  id: string;
+  projectId: string;
+  taskId: string;
+  department: Department;
+  kind: SubmissionKind;
+  content: string;
+  version: string;
+  final: boolean;
+  note: string;
+  author: string;
+  time: string;
 };
 
 const statusOrder: ProjectStatus[] = [
@@ -491,10 +506,8 @@ const registrationRequests: RegistrationRequest[] = [
 const navigation = [
   { id: "dashboard", label: "工作台", icon: Gauge },
   { id: "board", label: "项目看板", icon: FolderKanban },
-  { id: "detail", label: "项目详情", icon: FileText },
-  { id: "departments", label: "部门空间", icon: Layers3 },
+  { id: "departments", label: "部门任务", icon: Layers3 },
   { id: "members", label: "成员权限", icon: UsersRound },
-  { id: "register", label: "注册审核", icon: UserPlus },
 ] satisfies { id: View; label: string; icon: typeof Gauge }[];
 
 function App() {
@@ -502,6 +515,34 @@ function App() {
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0].id);
   const [selectedDepartment, setSelectedDepartment] = useState<Department>("采编部");
   const [approvalState, setApprovalState] = useState<"等待" | "通过" | "驳回">("等待");
+  const [submissions, setSubmissions] = useState<Submission[]>([
+    {
+      id: "S-001",
+      projectId: "P-2406-01",
+      taskId: "T-101",
+      department: "采编部",
+      kind: "链接",
+      content: "https://xiumi.example/final-draft",
+      version: "定稿 v3",
+      final: true,
+      note: "报名入口已放在文末，标题已确认。",
+      author: "陈思雨",
+      time: "今天 10:20",
+    },
+    {
+      id: "S-002",
+      projectId: "P-2406-05",
+      taskId: "T-503",
+      department: "运维部",
+      kind: "链接",
+      content: "公众号预览链接已生成",
+      version: "预览 v1",
+      final: true,
+      note: "等待明日 18:00 正式发布。",
+      author: "许知夏",
+      time: "今天 15:18",
+    },
+  ]);
   const selectedProject = projects.find((item) => item.id === selectedProjectId) ?? projects[0];
 
   const urgentTasks = useMemo(
@@ -526,6 +567,17 @@ function App() {
       .filter((task) => task.department === selectedDepartment)
       .map((task) => ({ ...task, projectTitle: project.title, projectId: project.id })),
   );
+
+  function addSubmission(input: Omit<Submission, "id" | "time">) {
+    setSubmissions((current) => [
+      {
+        ...input,
+        id: `S-${String(current.length + 1).padStart(3, "0")}`,
+        time: "刚刚",
+      },
+      ...current,
+    ]);
+  }
 
   function openProject(projectId: string) {
     setSelectedProjectId(projectId);
@@ -583,9 +635,9 @@ function App() {
             <button className="icon-button" type="button" aria-label="通知">
               <Bell size={18} aria-hidden="true" />
             </button>
-            <button className="primary-action" type="button" onClick={() => setView("register")}>
-              <UserPlus size={18} aria-hidden="true" />
-              成员注册
+            <button className="primary-action" type="button" onClick={() => setView("departments")}>
+              <Send size={18} aria-hidden="true" />
+              部门提交
             </button>
           </div>
         </header>
@@ -603,20 +655,23 @@ function App() {
         {view === "detail" && (
           <ProjectDetail
             approvalState={approvalState}
+            onAddSubmission={addSubmission}
             onApprovalChange={setApprovalState}
             project={selectedProject}
+            submissions={submissions.filter((submission) => submission.projectId === selectedProject.id)}
           />
         )}
         {view === "departments" && (
           <DepartmentSpace
+            onAddSubmission={addSubmission}
             selectedDepartment={selectedDepartment}
             setSelectedDepartment={setSelectedDepartment}
+            submissions={submissions.filter((submission) => submission.department === selectedDepartment)}
             tasks={departmentTasks}
             onOpenProject={openProject}
           />
         )}
         {view === "members" && <Members />}
-        {view === "register" && <RegisterAccess />}
       </section>
     </main>
   );
@@ -758,14 +813,20 @@ function ProjectBoard({ onOpenProject }: { onOpenProject: (projectId: string) =>
 
 function ProjectDetail({
   approvalState,
+  onAddSubmission,
   onApprovalChange,
   project,
+  submissions,
 }: {
   approvalState: "等待" | "通过" | "驳回";
+  onAddSubmission: (input: Omit<Submission, "id" | "time">) => void;
   onApprovalChange: (value: "等待" | "通过" | "驳回") => void;
   project: Project;
+  submissions: Submission[];
 }) {
   const approvalResult = approvalState === "等待" ? project.approvals[0]?.result ?? "等待" : approvalState;
+  const [activeTaskId, setActiveTaskId] = useState(project.tasks[0]?.id ?? "");
+  const activeTask = project.tasks.find((task) => task.id === activeTaskId) ?? project.tasks[0];
 
   return (
     <div className="view-grid detail-grid">
@@ -809,10 +870,31 @@ function ProjectDetail({
               </div>
               <h3>{task.title}</h3>
               <p>{task.owner} · 截止 {task.due}</p>
-              <button type="button">{task.action}</button>
+              <button type="button" onClick={() => setActiveTaskId(task.id)}>
+                {activeTaskId === task.id ? "正在填写" : task.action}
+              </button>
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="panel submission-panel">
+        <PanelHeader icon={Send} title="部门提交入口" action="统一表单" />
+        <SubmissionForm
+          author={activeTask?.owner ?? project.owner}
+          department={activeTask?.department ?? "采编部"}
+          key={activeTask?.id ?? project.id}
+          onSubmit={(payload) =>
+            onAddSubmission({
+              ...payload,
+              projectId: project.id,
+              taskId: activeTask?.id ?? project.tasks[0].id,
+              author: activeTask?.owner ?? project.owner,
+              department: activeTask?.department ?? "采编部",
+            })
+          }
+          taskTitle={activeTask?.title ?? "选择任务"}
+        />
       </section>
 
       <section className="panel">
@@ -829,6 +911,11 @@ function ProjectDetail({
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="panel">
+        <PanelHeader icon={Clock3} title="提交动态" action={`${submissions.length} 条记录`} />
+        <SubmissionLog submissions={submissions} />
       </section>
 
       <section className="panel">
@@ -870,16 +957,23 @@ function ProjectDetail({
 }
 
 function DepartmentSpace({
+  onAddSubmission,
   onOpenProject,
   selectedDepartment,
   setSelectedDepartment,
+  submissions,
   tasks,
 }: {
+  onAddSubmission: (input: Omit<Submission, "id" | "time">) => void;
   onOpenProject: (projectId: string) => void;
   selectedDepartment: Department;
   setSelectedDepartment: (department: Department) => void;
+  submissions: Submission[];
   tasks: (Task & { projectTitle: string; projectId: string })[];
 }) {
+  const [selectedTaskId, setSelectedTaskId] = useState(tasks[0]?.id ?? "");
+  const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0];
+
   return (
     <section className="department-view">
       <div className="view-heading">
@@ -905,7 +999,12 @@ function DepartmentSpace({
           <PanelHeader icon={PanelLeft} title={`${selectedDepartment}任务池`} action="按项目聚合" />
           <div className="task-list">
             {tasks.map((task) => (
-              <button className="task-row" key={task.id} onClick={() => onOpenProject(task.projectId)} type="button">
+              <button
+                className={`task-row ${selectedTask?.id === task.id ? "selected" : ""}`}
+                key={task.id}
+                onClick={() => setSelectedTaskId(task.id)}
+                type="button"
+              >
                 <span className={`status-dot ${taskTone[task.status]}`} />
                 <div>
                   <strong>{task.title}</strong>
@@ -913,9 +1012,37 @@ function DepartmentSpace({
                 </div>
                 <time>{task.due}</time>
                 <span className={`badge ${taskTone[task.status]}`}>{task.status}</span>
+                <span className="open-detail" onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenProject(task.projectId);
+                }}>
+                  详情
+                </span>
               </button>
             ))}
           </div>
+        </section>
+        <section className="panel submission-panel">
+          <PanelHeader icon={Send} title={`${selectedDepartment}提交`} action={selectedTask?.projectTitle ?? "选择任务"} />
+          {selectedTask ? (
+            <SubmissionForm
+              author={selectedTask.owner}
+              department={selectedDepartment}
+              key={selectedTask.id}
+              onSubmit={(payload) =>
+                onAddSubmission({
+                  ...payload,
+                  projectId: selectedTask.projectId,
+                  taskId: selectedTask.id,
+                  author: selectedTask.owner,
+                  department: selectedDepartment,
+                })
+              }
+              taskTitle={selectedTask.title}
+            />
+          ) : (
+            <p className="empty-state">当前部门暂无任务。</p>
+          )}
         </section>
         <section className="panel department-guide">
           <PanelHeader icon={Sparkles} title="交付规范" action="第一版最小字段" />
@@ -926,9 +1053,135 @@ function DepartmentSpace({
             <li>所有返工意见必须绑定到具体任务或文件。</li>
           </ul>
         </section>
+        <section className="panel">
+          <PanelHeader icon={Clock3} title="本部门提交动态" action={`${submissions.length} 条`} />
+          <SubmissionLog submissions={submissions} />
+        </section>
       </div>
     </section>
   );
+}
+
+function SubmissionForm({
+  author,
+  department,
+  onSubmit,
+  taskTitle,
+}: {
+  author: string;
+  department: Department;
+  onSubmit: (payload: Omit<Submission, "id" | "time" | "projectId" | "taskId" | "author" | "department">) => void;
+  taskTitle: string;
+}) {
+  const defaultKind: SubmissionKind = department === "运维部" ? "链接" : department === "技术部" ? "文件记录" : "链接";
+  const [kind, setKind] = useState<SubmissionKind>(defaultKind);
+  const [content, setContent] = useState("");
+  const [version, setVersion] = useState(department === "运维部" ? "预览 v1" : "初稿 v1");
+  const [final, setFinal] = useState(false);
+  const [note, setNote] = useState("");
+  const [lastMessage, setLastMessage] = useState("");
+
+  function submitForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedContent = content.trim() || getSubmissionPlaceholder(department);
+    onSubmit({
+      kind,
+      content: normalizedContent,
+      version: version.trim() || "初稿 v1",
+      final,
+      note: note.trim() || "已提交，请负责人审核。",
+    });
+    setLastMessage(`${author} 已提交：${normalizedContent}`);
+    setContent("");
+    setNote("");
+  }
+
+  return (
+    <form className="submission-form" onSubmit={submitForm}>
+      <div className="submission-context">
+        <span className={`badge ${department === "采编部" ? "blue" : department === "技术部" ? "orange" : "green"}`}>
+          {department}
+        </span>
+        <strong>{taskTitle}</strong>
+        <p>提交人：{author}</p>
+      </div>
+      <div className="form-grid">
+        <label>
+          提交类型
+          <select value={kind} onChange={(event) => setKind(event.target.value as SubmissionKind)}>
+            <option>链接</option>
+            <option>文件记录</option>
+            <option>文字说明</option>
+            <option>发布数据</option>
+          </select>
+        </label>
+        <label>
+          版本说明
+          <input value={version} onChange={(event) => setVersion(event.target.value)} />
+        </label>
+        <label className="wide-field">
+          提交内容
+          <input
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            placeholder={getSubmissionPlaceholder(department)}
+          />
+        </label>
+        <label className="wide-field">
+          备注
+          <input
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="说明修改点、风险或需要负责人确认的事项"
+          />
+        </label>
+      </div>
+      <label className="checkbox-line">
+        <input checked={final} onChange={(event) => setFinal(event.target.checked)} type="checkbox" />
+        标记为当前定稿
+      </label>
+      <button className="primary-action form-submit" type="submit">
+        <Send size={17} aria-hidden="true" />
+        提交给负责人审核
+      </button>
+      {lastMessage && <p className="submit-feedback">{lastMessage}</p>}
+    </form>
+  );
+}
+
+function SubmissionLog({ submissions }: { submissions: Submission[] }) {
+  if (submissions.length === 0) {
+    return <p className="empty-state">还没有提交记录。</p>;
+  }
+
+  return (
+    <div className="submission-log">
+      {submissions.map((submission) => (
+        <article key={submission.id}>
+          <div>
+            <span className={`badge ${submission.final ? "green" : "slate"}`}>
+              {submission.final ? "定稿" : submission.kind}
+            </span>
+            <strong>{submission.content}</strong>
+          </div>
+          <p>
+            {submission.department} · {submission.author} · {submission.version} · {submission.time}
+          </p>
+          <small>{submission.note}</small>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function getSubmissionPlaceholder(department: Department) {
+  if (department === "采编部") {
+    return "粘贴秀米编辑链接或预览链接";
+  }
+  if (department === "技术部") {
+    return "填写封面文件名、网盘链接或导出说明";
+  }
+  return "填写公众号预览链接、正式链接、发布截图或阅读数据";
 }
 
 function Members() {
@@ -979,11 +1232,12 @@ function Members() {
           ))}
         </section>
       </div>
+      <RegisterAccess embedded />
     </section>
   );
 }
 
-function RegisterAccess() {
+function RegisterAccess({ embedded = false }: { embedded?: boolean }) {
   const [reviewer, setReviewer] = useState<"负责老师" | "新媒体主任">("新媒体主任");
   const [draftName, setDraftName] = useState("");
   const [draftDepartment, setDraftDepartment] = useState<Department>("采编部");
@@ -999,25 +1253,48 @@ function RegisterAccess() {
   const selectedMember = members.find((member) => member.name === transferMember) ?? manageableMembers[0];
 
   return (
-    <section className="register-view">
-      <div className="view-heading">
-        <div>
-          <p className="eyebrow">Registration and people control</p>
-          <h2>注册审核与下级调动</h2>
+    <section className={embedded ? "register-view embedded-register" : "register-view"}>
+      {!embedded && (
+        <div className="view-heading">
+          <div>
+            <p className="eyebrow">Registration and people control</p>
+            <h2>注册审核与下级调动</h2>
+          </div>
+          <div className="segmented" aria-label="审核身份切换">
+            {(["新媒体主任", "负责老师"] satisfies ("负责老师" | "新媒体主任")[]).map((item) => (
+              <button
+                className={reviewer === item ? "active" : ""}
+                key={item}
+                onClick={() => setReviewer(item)}
+                type="button"
+              >
+                {item}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="segmented" aria-label="审核身份切换">
-          {(["新媒体主任", "负责老师"] satisfies ("负责老师" | "新媒体主任")[]).map((item) => (
-            <button
-              className={reviewer === item ? "active" : ""}
-              key={item}
-              onClick={() => setReviewer(item)}
-              type="button"
-            >
-              {item}
-            </button>
-          ))}
+      )}
+
+      {embedded && (
+        <div className="inline-section-heading">
+          <div>
+            <p className="eyebrow">Access workflow</p>
+            <h2>注册审核与下级调动</h2>
+          </div>
+          <div className="segmented" aria-label="审核身份切换">
+            {(["新媒体主任", "负责老师"] satisfies ("负责老师" | "新媒体主任")[]).map((item) => (
+              <button
+                className={reviewer === item ? "active" : ""}
+                key={item}
+                onClick={() => setReviewer(item)}
+                type="button"
+              >
+                {item}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="register-layout">
         <section className="panel registration-panel">
