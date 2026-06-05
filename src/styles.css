@@ -880,6 +880,13 @@ h3 {
   gap: 12px;
 }
 
+.review-inbox-panel {
+  border-color: rgba(180, 107, 22, 0.28);
+  background:
+    linear-gradient(135deg, rgba(180, 107, 22, 0.1), transparent 58%),
+    rgba(251, 252, 248, 0.96);
+}
+
 .submission-panel {
   border-color: rgba(31, 122, 77, 0.28);
   background:
@@ -944,6 +951,11 @@ h3 {
   background: var(--panel-soft);
 }
 
+.submission-log article.pending-review {
+  border: 1px solid rgba(180, 107, 22, 0.22);
+  background: #fff8ec;
+}
+
 .submission-log article > div {
   display: flex;
   align-items: center;
@@ -967,6 +979,36 @@ h3 {
 .submission-log small {
   margin-top: 5px;
   font-weight: 700;
+}
+
+.submission-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.submission-review-actions button,
+.submission-review-actions span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 0;
+  background: var(--green);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.submission-review-actions button:last-of-type {
+  background: var(--red);
+}
+
+.submission-review-actions span {
+  background: rgba(23, 32, 29, 0.08);
+  color: var(--muted);
 }
 
 .department-guide ul {

@@ -130,6 +130,9 @@ type Submission = {
   note: string;
   author: string;
   time: string;
+  reviewStatus: "待审核" | "通过" | "驳回";
+  reviewedBy?: string;
+  reviewNote?: string;
 };
 
 type PublishedTask = {
@@ -141,6 +144,8 @@ type PublishedTask = {
   due: string;
   status: TaskStatus;
 };
+
+type DepartmentFilter = Department | "全部部门";
 
 const statusOrder: ProjectStatus[] = [
   "待采编",
@@ -527,11 +532,28 @@ const navigation = [
   { id: "members", label: "成员权限", icon: UsersRound },
 ] satisfies { id: View; label: string; icon: typeof Gauge }[];
 
+function isDepartment(value: TeamArea): value is Department {
+  return value === "采编部" || value === "技术部" || value === "运维部";
+}
+
+function canViewEverything(member: Member) {
+  return member.role === "开发人员" || member.role === "负责老师" || member.role === "新媒体主任";
+}
+
+function canReviewSubmission(member: Member, submission: Submission) {
+  if (canViewEverything(member)) {
+    return true;
+  }
+
+  const departmentLeadRole = `${submission.department}负责人`;
+  return member.role === departmentLeadRole && member.department === submission.department;
+}
+
 function App() {
   const [view, setView] = useState<View>("dashboard");
   const [currentUserName, setCurrentUserName] = useState("Codex 开发者");
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0].id);
-  const [selectedDepartment, setSelectedDepartment] = useState<Department>("采编部");
+  const [selectedDepartment, setSelectedDepartment] = useState<DepartmentFilter>("全部部门");
   const [approvalState, setApprovalState] = useState<"等待" | "通过" | "驳回">("等待");
   const [publishedTasks, setPublishedTasks] = useState<PublishedTask[]>([
     {
@@ -566,6 +588,9 @@ function App() {
       note: "报名入口已放在文末，标题已确认。",
       author: "陈思雨",
       time: "今天 10:20",
+      reviewStatus: "通过",
+      reviewedBy: "林嘉宁",
+      reviewNote: "采编定稿通过，进入封面确认。",
     },
     {
       id: "S-002",
@@ -579,10 +604,18 @@ function App() {
       note: "等待明日 18:00 正式发布。",
       author: "许知夏",
       time: "今天 15:18",
+      reviewStatus: "待审核",
+      reviewNote: "等待运维负责人确认预览链接。",
     },
   ]);
   const selectedProject = projects.find((item) => item.id === selectedProjectId) ?? projects[0];
   const currentUser = members.find((member) => member.name === currentUserName) ?? members[0];
+  const canViewAllDepartments = canViewEverything(currentUser);
+  const activeDepartmentFilter: DepartmentFilter = canViewAllDepartments
+    ? selectedDepartment
+    : isDepartment(currentUser.department)
+      ? currentUser.department
+      : "全部部门";
 
   const urgentTasks = useMemo(
     () =>
@@ -603,22 +636,39 @@ function App() {
   const riskProjects = projects.filter((project) => project.status === "需返工" || project.risk !== "无明显风险");
   const departmentTasks = projects.flatMap((project) =>
     project.tasks
-      .filter((task) => task.department === selectedDepartment)
+      .filter((task) => activeDepartmentFilter === "全部部门" || task.department === activeDepartmentFilter)
       .map((task) => ({ ...task, projectTitle: project.title, projectId: project.id })),
   );
   const allTasks = projects.flatMap((project) =>
     project.tasks.map((task) => ({ ...task, projectTitle: project.title, projectId: project.id })),
   );
 
-  function addSubmission(input: Omit<Submission, "id" | "time">) {
+  function addSubmission(input: Omit<Submission, "id" | "time" | "reviewStatus" | "reviewedBy" | "reviewNote">) {
     setSubmissions((current) => [
       {
         ...input,
         id: `S-${String(current.length + 1).padStart(3, "0")}`,
         time: "刚刚",
+        reviewStatus: "待审核",
+        reviewNote: "已进入部门负责人审核队列。",
       },
       ...current,
     ]);
+  }
+
+  function reviewSubmission(submissionId: string, result: "通过" | "驳回", reviewer: string) {
+    setSubmissions((current) =>
+      current.map((submission) =>
+        submission.id === submissionId
+          ? {
+              ...submission,
+              reviewStatus: result,
+              reviewedBy: reviewer,
+              reviewNote: result === "通过" ? "审核通过，可进入下一步。" : "审核驳回，请按意见修改后重新提交。",
+            }
+          : submission,
+      ),
+    );
   }
 
   function openProject(projectId: string) {
@@ -713,27 +763,36 @@ function App() {
             members={members}
             onAddPublishedTask={addPublishedTask}
             onOpenProject={openProject}
+            onReviewSubmission={(submissionId, result) => reviewSubmission(submissionId, result, currentUser.name)}
             onSwitchUser={setCurrentUserName}
             publishedTasks={publishedTasks}
+            submissions={submissions}
           />
         )}
         {view === "detail" && (
           <ProjectDetail
+            currentUser={currentUser}
             approvalState={approvalState}
             onAddSubmission={addSubmission}
             onApprovalChange={setApprovalState}
+            onReviewSubmission={(submissionId, result) => reviewSubmission(submissionId, result, currentUser.name)}
             project={selectedProject}
             submissions={submissions.filter((submission) => submission.projectId === selectedProject.id)}
           />
         )}
         {view === "departments" && (
           <DepartmentSpace
+            canViewAllDepartments={canViewAllDepartments}
+            currentUser={currentUser}
             onAddSubmission={addSubmission}
-            selectedDepartment={selectedDepartment}
+            selectedDepartment={activeDepartmentFilter}
             setSelectedDepartment={setSelectedDepartment}
-            submissions={submissions.filter((submission) => submission.department === selectedDepartment)}
+            submissions={submissions.filter(
+              (submission) => activeDepartmentFilter === "全部部门" || submission.department === activeDepartmentFilter,
+            )}
             tasks={departmentTasks}
             onOpenProject={openProject}
+            onReviewSubmission={(submissionId, result) => reviewSubmission(submissionId, result, currentUser.name)}
           />
         )}
         {view === "members" && <Members />}
@@ -748,16 +807,20 @@ function MySpace({
   members,
   onAddPublishedTask,
   onOpenProject,
+  onReviewSubmission,
   onSwitchUser,
   publishedTasks,
+  submissions,
 }: {
   allTasks: (Task & { projectTitle: string; projectId: string })[];
   currentUser: Member;
   members: Member[];
   onAddPublishedTask: (input: Omit<PublishedTask, "id" | "publisher" | "status">) => void;
   onOpenProject: (projectId: string) => void;
+  onReviewSubmission: (submissionId: string, result: "通过" | "驳回") => void;
   onSwitchUser: (name: string) => void;
   publishedTasks: PublishedTask[];
+  submissions: Submission[];
 }) {
   const canPublish = currentUser.role === "开发人员" || currentUser.role === "负责老师" || currentUser.role === "新媒体主任";
   const visibleProjectTasks =
@@ -768,6 +831,9 @@ function MySpace({
     currentUser.role === "开发人员"
       ? publishedTasks
       : publishedTasks.filter((task) => task.assignee === currentUser.name || task.publisher === currentUser.name);
+  const reviewQueue = submissions.filter(
+    (submission) => submission.reviewStatus === "待审核" && canReviewSubmission(currentUser, submission),
+  );
 
   return (
     <section className="me-view">
@@ -838,6 +904,16 @@ function MySpace({
               </article>
             ))}
           </div>
+        </section>
+
+        <section className="panel review-inbox-panel">
+          <PanelHeader icon={ShieldCheck} title="待我审核" action={`${reviewQueue.length} 条提交`} />
+          <SubmissionLog
+            currentUser={currentUser}
+            onReview={onReviewSubmission}
+            showProjectHint
+            submissions={reviewQueue}
+          />
         </section>
 
         {canPublish && (
@@ -1048,14 +1124,18 @@ function ProjectBoard({ onOpenProject }: { onOpenProject: (projectId: string) =>
 
 function ProjectDetail({
   approvalState,
+  currentUser,
   onAddSubmission,
   onApprovalChange,
+  onReviewSubmission,
   project,
   submissions,
 }: {
   approvalState: "等待" | "通过" | "驳回";
-  onAddSubmission: (input: Omit<Submission, "id" | "time">) => void;
+  currentUser: Member;
+  onAddSubmission: (input: Omit<Submission, "id" | "time" | "reviewStatus" | "reviewedBy" | "reviewNote">) => void;
   onApprovalChange: (value: "等待" | "通过" | "驳回") => void;
+  onReviewSubmission: (submissionId: string, result: "通过" | "驳回") => void;
   project: Project;
   submissions: Submission[];
 }) {
@@ -1150,7 +1230,7 @@ function ProjectDetail({
 
       <section className="panel">
         <PanelHeader icon={Clock3} title="提交动态" action={`${submissions.length} 条记录`} />
-        <SubmissionLog submissions={submissions} />
+        <SubmissionLog currentUser={currentUser} onReview={onReviewSubmission} submissions={submissions} />
       </section>
 
       <section className="panel">
@@ -1192,32 +1272,43 @@ function ProjectDetail({
 }
 
 function DepartmentSpace({
+  canViewAllDepartments,
+  currentUser,
   onAddSubmission,
   onOpenProject,
+  onReviewSubmission,
   selectedDepartment,
   setSelectedDepartment,
   submissions,
   tasks,
 }: {
-  onAddSubmission: (input: Omit<Submission, "id" | "time">) => void;
+  canViewAllDepartments: boolean;
+  currentUser: Member;
+  onAddSubmission: (input: Omit<Submission, "id" | "time" | "reviewStatus" | "reviewedBy" | "reviewNote">) => void;
   onOpenProject: (projectId: string) => void;
-  selectedDepartment: Department;
-  setSelectedDepartment: (department: Department) => void;
+  onReviewSubmission: (submissionId: string, result: "通过" | "驳回") => void;
+  selectedDepartment: DepartmentFilter;
+  setSelectedDepartment: (department: DepartmentFilter) => void;
   submissions: Submission[];
   tasks: (Task & { projectTitle: string; projectId: string })[];
 }) {
   const [selectedTaskId, setSelectedTaskId] = useState(tasks[0]?.id ?? "");
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0];
+  const departmentOptions: DepartmentFilter[] = canViewAllDepartments
+    ? ["全部部门", "采编部", "技术部", "运维部"]
+    : isDepartment(currentUser.department)
+      ? [currentUser.department]
+      : ["采编部", "技术部", "运维部"];
 
   return (
     <section className="department-view">
       <div className="view-heading">
         <div>
-          <p className="eyebrow">Department workspace</p>
-          <h2>部门空间</h2>
+          <p className="eyebrow">Department approval workspace</p>
+          <h2>部门任务与审核</h2>
         </div>
         <div className="segmented" aria-label="部门切换">
-          {(["采编部", "技术部", "运维部"] satisfies Department[]).map((department) => (
+          {departmentOptions.map((department) => (
             <button
               className={selectedDepartment === department ? "active" : ""}
               key={department}
@@ -1231,7 +1322,7 @@ function DepartmentSpace({
       </div>
       <div className="department-layout">
         <section className="panel">
-          <PanelHeader icon={PanelLeft} title={`${selectedDepartment}任务池`} action="按项目聚合" />
+          <PanelHeader icon={PanelLeft} title={`${selectedDepartment}任务池`} action={canViewAllDepartments ? "可看全部" : "仅本部门"} />
           <div className="task-list">
             {tasks.map((task) => (
               <button
@@ -1262,7 +1353,7 @@ function DepartmentSpace({
           {selectedTask ? (
             <SubmissionForm
               author={selectedTask.owner}
-              department={selectedDepartment}
+              department={selectedTask.department}
               key={selectedTask.id}
               onSubmit={(payload) =>
                 onAddSubmission({
@@ -1270,7 +1361,7 @@ function DepartmentSpace({
                   projectId: selectedTask.projectId,
                   taskId: selectedTask.id,
                   author: selectedTask.owner,
-                  department: selectedDepartment,
+                  department: selectedTask.department,
                 })
               }
               taskTitle={selectedTask.title}
@@ -1290,7 +1381,7 @@ function DepartmentSpace({
         </section>
         <section className="panel">
           <PanelHeader icon={Clock3} title="本部门提交动态" action={`${submissions.length} 条`} />
-          <SubmissionLog submissions={submissions} />
+          <SubmissionLog currentUser={currentUser} onReview={onReviewSubmission} submissions={submissions} />
         </section>
       </div>
     </section>
@@ -1305,7 +1396,12 @@ function SubmissionForm({
 }: {
   author: string;
   department: Department;
-  onSubmit: (payload: Omit<Submission, "id" | "time" | "projectId" | "taskId" | "author" | "department">) => void;
+  onSubmit: (
+    payload: Omit<
+      Submission,
+      "id" | "time" | "projectId" | "taskId" | "author" | "department" | "reviewStatus" | "reviewedBy" | "reviewNote"
+    >,
+  ) => void;
   taskTitle: string;
 }) {
   const defaultKind: SubmissionKind = department === "运维部" ? "链接" : department === "技术部" ? "图片文件" : "链接";
@@ -1432,7 +1528,17 @@ function SubmissionForm({
   );
 }
 
-function SubmissionLog({ submissions }: { submissions: Submission[] }) {
+function SubmissionLog({
+  currentUser,
+  onReview,
+  showProjectHint = false,
+  submissions,
+}: {
+  currentUser: Member;
+  onReview: (submissionId: string, result: "通过" | "驳回") => void;
+  showProjectHint?: boolean;
+  submissions: Submission[];
+}) {
   if (submissions.length === 0) {
     return <p className="empty-state">还没有提交记录。</p>;
   }
@@ -1440,21 +1546,48 @@ function SubmissionLog({ submissions }: { submissions: Submission[] }) {
   return (
     <div className="submission-log">
       {submissions.map((submission) => (
-        <article key={submission.id}>
+        <article className={submission.reviewStatus === "待审核" ? "pending-review" : ""} key={submission.id}>
           <div>
-            <span className={`badge ${submission.final ? "green" : "slate"}`}>
-              {submission.final ? "定稿" : submission.kind}
+            <span className={`badge ${submission.reviewStatus === "通过" ? "green" : submission.reviewStatus === "驳回" ? "red" : "amber"}`}>
+              {submission.reviewStatus}
             </span>
+            {submission.final && <span className="badge green">定稿</span>}
+            <span className="badge slate">{submission.kind}</span>
             <strong>{submission.content}</strong>
           </div>
           <p>
             {submission.department} · {submission.author} · {submission.version} · {submission.time}
           </p>
+          {showProjectHint && <small>{submission.projectId} · {submission.taskId}</small>}
           <small>{submission.note}</small>
+          <small>{submission.reviewNote ?? getReviewHint(submission)}</small>
+          {submission.reviewedBy && <small>审核人：{submission.reviewedBy}</small>}
+          {submission.reviewStatus === "待审核" && (
+            <footer className="submission-review-actions">
+              {canReviewSubmission(currentUser, submission) ? (
+                <>
+                  <button type="button" onClick={() => onReview(submission.id, "通过")}>
+                    <CheckCircle2 size={16} aria-hidden="true" />
+                    通过
+                  </button>
+                  <button type="button" onClick={() => onReview(submission.id, "驳回")}>
+                    <AlertTriangle size={16} aria-hidden="true" />
+                    驳回
+                  </button>
+                </>
+              ) : (
+                <span>{getReviewHint(submission)}</span>
+              )}
+            </footer>
+          )}
         </article>
       ))}
     </div>
   );
+}
+
+function getReviewHint(submission: Submission) {
+  return `等待${submission.department}负责人、主任或老师审核。`;
 }
 
 function getSubmissionPlaceholder(department: Department) {
