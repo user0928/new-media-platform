@@ -13,12 +13,15 @@ import {
   FolderKanban,
   Gauge,
   ImagePlus,
+  KeyRound,
   Layers3,
   Link2,
+  LogIn,
   Megaphone,
   MessageSquareText,
   PanelLeft,
   PenLine,
+  PlusCircle,
   Search,
   Send,
   Settings2,
@@ -29,10 +32,11 @@ import {
   UsersRound,
 } from "lucide-react";
 
-type View = "dashboard" | "board" | "detail" | "departments" | "members";
+type View = "dashboard" | "me" | "board" | "detail" | "departments" | "members";
 type Department = "采编部" | "技术部" | "运维部";
 type TeamArea = Department | "指导" | "统筹";
 type MemberRole =
+  | "开发人员"
   | "负责老师"
   | "新媒体主任"
   | "采编部负责人"
@@ -126,6 +130,16 @@ type Submission = {
   note: string;
   author: string;
   time: string;
+};
+
+type PublishedTask = {
+  id: string;
+  title: string;
+  description: string;
+  assignee: string;
+  publisher: string;
+  due: string;
+  status: TaskStatus;
 };
 
 const statusOrder: ProjectStatus[] = [
@@ -475,6 +489,7 @@ const projects: Project[] = [
 ];
 
 const members: Member[] = [
+  { name: "Codex 开发者", role: "开发人员", department: "统筹", active: true, manager: "系统" },
   { name: "王老师", role: "负责老师", department: "指导", active: true, manager: "校团委" },
   { name: "林嘉宁", role: "新媒体主任", department: "统筹", active: true, manager: "王老师" },
   { name: "陈思雨", role: "采编部负责人", department: "采编部", active: true, manager: "林嘉宁" },
@@ -506,6 +521,7 @@ const registrationRequests: RegistrationRequest[] = [
 
 const navigation = [
   { id: "dashboard", label: "工作台", icon: Gauge },
+  { id: "me", label: "我的", icon: UserCog },
   { id: "board", label: "项目看板", icon: FolderKanban },
   { id: "departments", label: "部门任务", icon: Layers3 },
   { id: "members", label: "成员权限", icon: UsersRound },
@@ -513,9 +529,30 @@ const navigation = [
 
 function App() {
   const [view, setView] = useState<View>("dashboard");
+  const [currentUserName, setCurrentUserName] = useState("Codex 开发者");
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0].id);
   const [selectedDepartment, setSelectedDepartment] = useState<Department>("采编部");
   const [approvalState, setApprovalState] = useState<"等待" | "通过" | "驳回">("等待");
+  const [publishedTasks, setPublishedTasks] = useState<PublishedTask[]>([
+    {
+      id: "PT-001",
+      title: "确认招新推文封面最终版",
+      description: "核对封面标题、报名二维码和主视觉是否与定稿一致。",
+      assignee: "周屿",
+      publisher: "林嘉宁",
+      due: "今日 21:00",
+      status: "待审核",
+    },
+    {
+      id: "PT-002",
+      title: "补齐活动预告采访素材",
+      description: "补充嘉宾介绍和活动流程，提交到采编任务中。",
+      assignee: "黄若然",
+      publisher: "王老师",
+      due: "明日 15:00",
+      status: "进行中",
+    },
+  ]);
   const [submissions, setSubmissions] = useState<Submission[]>([
     {
       id: "S-001",
@@ -545,6 +582,7 @@ function App() {
     },
   ]);
   const selectedProject = projects.find((item) => item.id === selectedProjectId) ?? projects[0];
+  const currentUser = members.find((member) => member.name === currentUserName) ?? members[0];
 
   const urgentTasks = useMemo(
     () =>
@@ -568,6 +606,9 @@ function App() {
       .filter((task) => task.department === selectedDepartment)
       .map((task) => ({ ...task, projectTitle: project.title, projectId: project.id })),
   );
+  const allTasks = projects.flatMap((project) =>
+    project.tasks.map((task) => ({ ...task, projectTitle: project.title, projectId: project.id })),
+  );
 
   function addSubmission(input: Omit<Submission, "id" | "time">) {
     setSubmissions((current) => [
@@ -583,6 +624,18 @@ function App() {
   function openProject(projectId: string) {
     setSelectedProjectId(projectId);
     setView("detail");
+  }
+
+  function addPublishedTask(input: Omit<PublishedTask, "id" | "publisher" | "status">) {
+    setPublishedTasks((current) => [
+      {
+        ...input,
+        id: `PT-${String(current.length + 1).padStart(3, "0")}`,
+        publisher: currentUser.name,
+        status: "未开始",
+      },
+      ...current,
+    ]);
   }
 
   return (
@@ -616,9 +669,9 @@ function App() {
         </nav>
 
         <div className="side-card">
-          <p>本周发布</p>
-          <strong>5 篇</strong>
-          <span>2 篇需要老师审批，1 篇已进入返工。</span>
+          <p>当前身份</p>
+          <strong>{currentUser.role === "开发人员" ? "最高" : "权限"}</strong>
+          <span>{currentUser.name} · {currentUser.role}</span>
         </div>
       </aside>
 
@@ -636,9 +689,9 @@ function App() {
             <button className="icon-button" type="button" aria-label="通知">
               <Bell size={18} aria-hidden="true" />
             </button>
-            <button className="primary-action" type="button" onClick={() => setView("departments")}>
-              <Send size={18} aria-hidden="true" />
-              部门提交
+            <button className="primary-action" type="button" onClick={() => setView("me")}>
+              <LogIn size={18} aria-hidden="true" />
+              注册 / 登录
             </button>
           </div>
         </header>
@@ -653,6 +706,17 @@ function App() {
           />
         )}
         {view === "board" && <ProjectBoard onOpenProject={openProject} />}
+        {view === "me" && (
+          <MySpace
+            allTasks={allTasks}
+            currentUser={currentUser}
+            members={members}
+            onAddPublishedTask={addPublishedTask}
+            onOpenProject={openProject}
+            onSwitchUser={setCurrentUserName}
+            publishedTasks={publishedTasks}
+          />
+        )}
         {view === "detail" && (
           <ProjectDetail
             approvalState={approvalState}
@@ -675,6 +739,176 @@ function App() {
         {view === "members" && <Members />}
       </section>
     </main>
+  );
+}
+
+function MySpace({
+  allTasks,
+  currentUser,
+  members,
+  onAddPublishedTask,
+  onOpenProject,
+  onSwitchUser,
+  publishedTasks,
+}: {
+  allTasks: (Task & { projectTitle: string; projectId: string })[];
+  currentUser: Member;
+  members: Member[];
+  onAddPublishedTask: (input: Omit<PublishedTask, "id" | "publisher" | "status">) => void;
+  onOpenProject: (projectId: string) => void;
+  onSwitchUser: (name: string) => void;
+  publishedTasks: PublishedTask[];
+}) {
+  const canPublish = currentUser.role === "开发人员" || currentUser.role === "负责老师" || currentUser.role === "新媒体主任";
+  const visibleProjectTasks =
+    currentUser.role === "开发人员"
+      ? allTasks
+      : allTasks.filter((task) => task.owner === currentUser.name);
+  const visiblePublishedTasks =
+    currentUser.role === "开发人员"
+      ? publishedTasks
+      : publishedTasks.filter((task) => task.assignee === currentUser.name || task.publisher === currentUser.name);
+
+  return (
+    <section className="me-view">
+      <div className="view-heading">
+        <div>
+          <p className="eyebrow">Personal workspace</p>
+          <h2>我的</h2>
+        </div>
+        <span className="super-badge">
+          <KeyRound size={16} aria-hidden="true" />
+          {currentUser.role === "开发人员" ? "开发者默认最高权限" : `${currentUser.role} 权限`}
+        </span>
+      </div>
+
+      <div className="me-layout">
+        <section className="panel auth-panel">
+          <PanelHeader icon={LogIn} title="注册 / 登录" action="本地模拟身份" />
+          <div className="login-card">
+            <span className="avatar">{currentUser.name.slice(0, 1)}</span>
+            <div>
+              <strong>{currentUser.name}</strong>
+              <p>{currentUser.role} · {currentUser.department}</p>
+            </div>
+          </div>
+          <div className="form-grid compact-form">
+            <label>
+              切换登录身份
+              <select value={currentUser.name} onChange={(event) => onSwitchUser(event.target.value)}>
+                {members.map((member) => (
+                  <option key={member.name}>{member.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              注册入口
+              <input placeholder="输入姓名后可提交注册申请" />
+            </label>
+          </div>
+          <p className="permission-note">
+            当前开发阶段默认登录为“Codex 开发者”，拥有老师、主任、部门负责人和干事的全部可见与操作权限。
+          </p>
+        </section>
+
+        <section className="panel my-task-panel">
+          <PanelHeader icon={ClipboardCheck} title="我的任务" action={`${visibleProjectTasks.length + visiblePublishedTasks.length} 项`} />
+          <div className="task-list">
+            {visibleProjectTasks.slice(0, 7).map((task) => (
+              <button className="task-row" key={task.id} onClick={() => onOpenProject(task.projectId)} type="button">
+                <span className={`status-dot ${taskTone[task.status]}`} />
+                <div>
+                  <strong>{task.title}</strong>
+                  <p>{task.projectTitle} · {task.department} · {task.owner}</p>
+                </div>
+                <time>{task.due}</time>
+                <span className={`badge ${taskTone[task.status]}`}>{task.status}</span>
+              </button>
+            ))}
+            {visiblePublishedTasks.map((task) => (
+              <article className="published-task-row" key={task.id}>
+                <span className={`status-dot ${taskTone[task.status]}`} />
+                <div>
+                  <strong>{task.title}</strong>
+                  <p>{task.description}</p>
+                  <small>发布人：{task.publisher} · 接收人：{task.assignee}</small>
+                </div>
+                <time>{task.due}</time>
+                <span className={`badge ${taskTone[task.status]}`}>{task.status}</span>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {canPublish && (
+          <section className="panel publish-panel span-2">
+            <PanelHeader icon={PlusCircle} title="发布任务" action="老师 / 主任 / 开发者可用" />
+            <PublishTaskForm members={members} onSubmit={onAddPublishedTask} />
+          </section>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PublishTaskForm({
+  members,
+  onSubmit,
+}: {
+  members: Member[];
+  onSubmit: (input: Omit<PublishedTask, "id" | "publisher" | "status">) => void;
+}) {
+  const assignableMembers = members.filter((member) => member.role !== "开发人员" && member.active);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [assignee, setAssignee] = useState(assignableMembers[0]?.name ?? "");
+  const [due, setDue] = useState("明日 18:00");
+  const [feedback, setFeedback] = useState("");
+
+  function submitTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedTitle = title.trim() || "新发布任务";
+    onSubmit({
+      title: normalizedTitle,
+      description: description.trim() || "请按要求完成并在平台内更新状态。",
+      assignee,
+      due: due.trim() || "待定",
+    });
+    setFeedback(`已发布给 ${assignee}：${normalizedTitle}`);
+    setTitle("");
+    setDescription("");
+  }
+
+  return (
+    <form className="publish-task-form" onSubmit={submitTask}>
+      <div className="form-grid">
+        <label>
+          任务标题
+          <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：补充招新推文报名入口" />
+        </label>
+        <label>
+          接收人
+          <select value={assignee} onChange={(event) => setAssignee(event.target.value)}>
+            {assignableMembers.map((member) => (
+              <option key={member.name}>{member.name}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          截止时间
+          <input value={due} onChange={(event) => setDue(event.target.value)} placeholder="例如：今日 21:00" />
+        </label>
+        <label className="wide-field">
+          任务说明
+          <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="说明交付内容、验收标准或注意事项" />
+        </label>
+      </div>
+      <button className="primary-action form-submit" type="submit">
+        <PlusCircle size={17} aria-hidden="true" />
+        发布任务
+      </button>
+      {feedback && <p className="submit-feedback">{feedback}</p>}
+    </form>
   );
 }
 

@@ -785,7 +785,8 @@ h3 {
 }
 
 .department-layout,
-.members-layout {
+.members-layout,
+.me-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
   gap: 16px;
@@ -793,6 +794,90 @@ h3 {
 
 .department-layout {
   align-items: start;
+}
+
+.me-layout {
+  align-items: start;
+}
+
+.super-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.auth-panel {
+  border-color: rgba(23, 32, 29, 0.18);
+  background:
+    linear-gradient(135deg, rgba(231, 255, 125, 0.48), transparent 56%),
+    rgba(251, 252, 248, 0.96);
+}
+
+.login-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  background: var(--panel-soft);
+}
+
+.login-card strong,
+.published-task-row strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.login-card p,
+.published-task-row p,
+.published-task-row small {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.compact-form {
+  grid-template-columns: 1fr;
+}
+
+.my-task-panel {
+  min-height: 100%;
+}
+
+.published-task-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 76px;
+  padding: 12px;
+  background: #fff;
+}
+
+.published-task-row time {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.publish-panel {
+  border-color: rgba(37, 110, 159, 0.22);
+  background:
+    linear-gradient(135deg, rgba(37, 110, 159, 0.1), transparent 52%),
+    rgba(251, 252, 248, 0.96);
+}
+
+.publish-task-form {
+  display: grid;
+  gap: 12px;
 }
 
 .submission-panel {
@@ -1116,7 +1201,7 @@ h3 {
   }
 
   .side-nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .side-card {
@@ -1127,6 +1212,7 @@ h3 {
   .view-grid,
   .department-layout,
   .members-layout,
+  .me-layout,
   .register-layout {
     grid-template-columns: 1fr;
   }
@@ -1256,6 +1342,7 @@ h3 {
   }
 
   .task-row,
+  .published-task-row,
   .file-list article,
   .member-table article {
     grid-template-columns: auto minmax(0, 1fr);
@@ -1265,6 +1352,8 @@ h3 {
   .task-row time,
   .task-row .badge,
   .task-row .open-detail,
+  .published-task-row time,
+  .published-task-row .badge,
   .file-list .badge,
   .member-table > article > span:not(.avatar),
   .manager-label {
@@ -1278,6 +1367,10 @@ h3 {
   }
 
   .task-row time {
+    white-space: normal;
+  }
+
+  .published-task-row time {
     white-space: normal;
   }
 
